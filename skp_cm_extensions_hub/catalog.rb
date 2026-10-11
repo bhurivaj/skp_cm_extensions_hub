@@ -13,6 +13,7 @@ module SkpCm
       SCHEMA = 1
 
       MSG_OFFLINE = 'เชื่อมต่อ GitHub ไม่ได้ — ตรวจ internet แล้วกดรีเฟรช'
+      MSG_INDEX_HTTP = 'โหลดรายการ plugins ไม่ได้ (HTTP %d) — ลองใหม่ภายหลัง'
       MSG_SCHEMA = 'รายการ plugins ใหม่กว่า Hub — กรุณาอัปเดต Hub จาก ' \
                    'https://github.com/bhurivaj/skp_cm_extensions_hub/releases'
       MSG_BAD_INDEX = 'อ่านรายการ plugins (index.json) ไม่ได้'
@@ -81,7 +82,8 @@ module SkpCm
       # Yields (entries, nil) or (nil, error_message) when the plugin list itself cannot be loaded
       def load(&done)
         Http.get(INDEX_URL) do |status, body, error|
-          next done.call(nil, MSG_OFFLINE) if error || status != 200
+          next done.call(nil, MSG_OFFLINE) if error
+          next done.call(nil, format(MSG_INDEX_HTTP, status.to_i)) if status != 200
 
           items =
             begin

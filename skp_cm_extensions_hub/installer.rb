@@ -47,15 +47,24 @@ module SkpCm
         end
 
         def install_archive(entry, data)
-          path = File.join(Dir.tmpdir, "#{entry['id']}_#{entry['latest_version']}.rbz")
+          # id / version come from the index and release tags: keep the temp file inside Dir.tmpdir
+          name = "#{entry['id']}_#{entry['latest_version']}".tr('^A-Za-z0-9._-', '_')
+          path = File.join(Dir.tmpdir, "#{name}.rbz")
           File.binwrite(path, data)
           Sketchup.install_from_archive(path, false)
+          # remove() unchecks the extension and SketchUp remembers it: switch it back on after a reinstall
+          ext = Sketchup.extensions[entry['name']]
+          ext.check if ext && !ext.loaded?
           [true, install_message(entry)]
         # install_from_archive raises Interrupt (user declined) or plain Exception (bad archive)
         rescue Exception => e # rubocop:disable Lint/RescueException
           [false, "ติดตั้งไม่สำเร็จ: #{e.message.empty? ? e.class : e.message}"]
         ensure
-          File.delete(path) if path && File.exist?(path)
+          begin
+            File.delete(path) if path && File.exist?(path)
+          rescue SystemCallError => e
+            puts "[SkpCm::ExtensionsHub] temp cleanup #{path}: #{e.message}"
+          end
         end
 
         def install_message(entry)

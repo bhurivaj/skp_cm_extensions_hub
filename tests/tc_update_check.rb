@@ -31,4 +31,11 @@ class TestUpdateCheck < Minitest::Test
     assert_nil U.update_notice([{ 'name' => 'B', 'status' => 'up_to_date' }])
     assert_nil U.update_notice([])
   end
+
+  def test_successful
+    refute U.successful?([{ 'error' => 'a' }, { 'error' => 'b' }])
+    assert U.successful?([{ 'error' => 'a' }, { 'error' => nil }])
+    assert U.successful?([{ 'name' => 'x' }])
+    refute U.successful?([])
+  end
 end

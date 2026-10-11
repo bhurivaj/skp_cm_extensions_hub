@@ -23,6 +23,11 @@ module SkpCm
           "มีอัปเดต #{names.size} รายการ: #{names.join(', ')}"
         end
 
+        # True when at least one release lookup worked (so a check is worth remembering)
+        def successful?(entries)
+          entries.any? { |e| e['error'].nil? }
+        end
+
         def run
           return unless check_due?(Sketchup.read_default(PREF_SECTION, 'last_check', 0), Time.now.to_i)
 
@@ -31,7 +36,7 @@ module SkpCm
               if error
                 log(error)
               else
-                Sketchup.write_default(PREF_SECTION, 'last_check', Time.now.to_i)
+                Sketchup.write_default(PREF_SECTION, 'last_check', Time.now.to_i) if successful?(entries)
                 text = update_notice(entries)
                 notify(text) if text
               end
@@ -48,7 +53,13 @@ module SkpCm
         def notify(text)
           # keep a reference: the callbacks stop working if the notification is garbage collected
           @notification = UI::Notification.new(EXTENSION, text)
-          @notification.on_accept('เปิด Hub') { Dialog.show }
+          @notification.on_accept('เปิด Hub') do
+            begin
+              Dialog.show
+            rescue StandardError => e
+              puts "[#{PLUGIN_NAME}] #{e.class}: #{e.message}"
+            end
+          end
           @notification.on_dismiss('ปิด') {}
           @notification.show
         end

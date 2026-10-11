@@ -106,6 +106,41 @@ class TestInstaller < Minitest::Test
     assert_includes msg, '2.0.1'
   end
 
+  def test_install_archive_checks_registered_but_not_loaded_extension
+    ext = Sketchup::FakeExtension.new('2.0.0')
+    Sketchup.extensions = { 'Ropefall' => ext }
+    ok, = I.install_archive(entry('installed' => false), 'x')
+    assert ok
+    assert ext.checked, 'disabled extension must be re-enabled after install'
+  end
+
+  def test_install_archive_does_not_check_loaded_extension
+    ext = Sketchup::FakeExtension.new('2.0.0')
+    ext.loaded = true
+    Sketchup.extensions = { 'Ropefall' => ext }
+    I.install_archive(entry, 'x')
+    refute ext.checked
+  end
+
+  def test_install_archive_survives_temp_delete_failure
+    real = File.method(:delete)
+    File.define_singleton_method(:delete) { |*_a| raise Errno::EACCES, 'locked' }
+    begin
+      ok, = I.install_archive(entry('installed' => false), 'x')
+      assert ok, 'delete failure in ensure must not turn success into failure'
+    ensure
+      File.define_singleton_method(:delete, &real)
+      Sketchup.archive_paths.each { |p| FileUtils.rm_f(p) }
+    end
+  end
+
+  def test_install_archive_sanitizes_temp_filename
+    Sketchup.archive_paths = []
+    I.install_archive(entry('id' => '../../evil', 'latest_version' => 'v/1'), 'x')
+    path = Sketchup.archive_paths.last
+    assert_equal File.expand_path(Dir.tmpdir), File.expand_path(File.dirname(path))
+  end
+
   def test_install_archive_reports_failure
     Sketchup.install_error = Interrupt
     ok, msg = I.install_archive(entry, 'x')

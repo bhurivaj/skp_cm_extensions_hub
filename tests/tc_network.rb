@@ -76,6 +76,13 @@ class TestNetwork < Minitest::Test
     assert_equal C::MSG_OFFLINE, error
   end
 
+  def test_load_index_http_error
+    stub_http(C::INDEX_URL => [404, 'nf', nil])
+    entries, error = load_catalog
+    assert_nil entries
+    assert_includes error, 'HTTP 404'
+  end
+
   def test_load_bad_schema
     stub_http(C::INDEX_URL => [200, '{"schema":9,"plugins":[]}', nil])
     assert_equal C::MSG_SCHEMA, load_catalog[1]

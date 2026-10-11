@@ -10,7 +10,13 @@ require_relative 'update_check'
 module SkpCm
   module ExtensionsHub
     unless file_loaded?(__FILE__)
-      UI.menu('Extensions').add_item(PLUGIN_NAME) { Dialog.show }
+      UI.menu('Extensions').add_item(PLUGIN_NAME) do
+        begin
+          Dialog.show
+        rescue StandardError => e
+          puts "[#{PLUGIN_NAME}] #{e.class}: #{e.message}"
+        end
+      end
 
       # wait a bit so the check does not compete with SketchUp start-up
       UI.start_timer(10, false) { UpdateCheck.run }
