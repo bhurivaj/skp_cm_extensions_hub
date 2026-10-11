@@ -2,6 +2,7 @@
 
 require 'json'
 require 'rubygems'
+require_relative 'http'
 
 module SkpCm
   module ExtensionsHub
@@ -75,6 +76,57 @@ module SkpCm
 
       def mark_pending(entries, ids)
         entries.map { |e| e.merge('pending_restart' => ids.include?(e['id'])) }
+      end
+
+      # Yields (entries, nil) or (nil, error_message) when the plugin list itself cannot be loaded
+      def load(&done)
+        Http.get(INDEX_URL) do |status, body, error|
+          next done.call(nil, MSG_OFFLINE) if error || status != 200
+
+          items =
+            begin
+              parse_index(body)
+            rescue SchemaError
+              next done.call(nil, MSG_SCHEMA)
+            rescue JSON::ParserError
+              next done.call(nil, MSG_BAD_INDEX)
+            end
+          fetch_releases(items, &done)
+        end
+      end
+
+      def fetch_releases(items, &done)
+        return done.call([], nil) if items.empty?
+
+        results = {}
+        items.each_with_index do |item, i|
+          url = "https://api.github.com/repos/#{item['repo']}/releases/latest"
+          Http.get(url, 'Accept' => 'application/vnd.github+json') do |status, body, error|
+            results[i] = release_result(status, body, error)
+            finish(items, results, &done) if results.size == items.size
+          end
+        end
+      end
+
+      # [release_hash_or_nil, error_message_or_nil]
+      def release_result(status, body, error)
+        return [nil, MSG_OFFLINE] if error
+        return [nil, release_error_message(status)] unless status == 200
+
+        [JSON.parse(body), nil]
+      rescue JSON::ParserError
+        [nil, 'ข้อมูล release จาก GitHub อ่านไม่ได้']
+      end
+
+      def finish(items, results, &done)
+        plugins_dir = Sketchup.find_support_file('Plugins')
+        entries = items.each_with_index.map do |item, i|
+          release, error = results[i]
+          ext = Sketchup.extensions[item['name']]
+          build_entry(item, plugins_dir: plugins_dir, installed_version: ext ? ext.version : nil,
+                            release: release, release_error: error)
+        end
+        done.call(entries, nil)
       end
     end
   end

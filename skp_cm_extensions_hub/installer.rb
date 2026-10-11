@@ -3,6 +3,7 @@
 require 'fileutils'
 require 'tmpdir'
 require_relative 'catalog'
+require_relative 'http'
 
 module SkpCm
   module ExtensionsHub
@@ -62,6 +63,19 @@ module SkpCm
             "อัปเดต #{entry['name']} แล้ว — ปิดแล้วเปิด SketchUp ใหม่เพื่อใช้เวอร์ชัน #{entry['latest_version']}"
           else
             "ติดตั้ง #{entry['name']} #{entry['latest_version']} แล้ว ใช้งานได้ทันที"
+          end
+        end
+
+        # Yields (ok, message)
+        def install(entry, &done)
+          return done.call(false, 'ไม่มีไฟล์ .rbz ให้ดาวน์โหลด') unless entry['asset_url']
+
+          Http.get(entry['asset_url']) do |status, body, error|
+            if error || status != 200
+              done.call(false, "ดาวน์โหลดไม่สำเร็จ (#{error || "HTTP #{status}"})")
+            else
+              done.call(*install_archive(entry, body))
+            end
           end
         end
       end
