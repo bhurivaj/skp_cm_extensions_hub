@@ -19,6 +19,7 @@ SketchUp → Extensions → Extension Manager → Install Extension → เล�
 กติกาของ plugin ที่อยู่ใน Hub:
 
 - `name` ต้องตรงกับชื่อใน `SketchupExtension.new(name, ...)`
+- `author` = ชื่อผู้พัฒนา (แสดงในการ์ด + ใช้เรียงลำดับ; plugin ของคนอื่นใส่ชื่อเจ้าของจริง)
 - `files` = ไฟล์/โฟลเดอร์ใน Plugins folder (ตัวแรกคือ loader) — ใช้ตอนถอน
 - Release: tag `vX.Y.Z`, แนบ `.rbz` 1 ไฟล์, ใน `.rbz` มีเฉพาะสิ่งที่อยู่ใน `files`
 

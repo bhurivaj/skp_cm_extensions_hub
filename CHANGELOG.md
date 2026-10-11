@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- Author line on each plugin card (`author` field in `index.json`, optional — shows "-" when missing)
+- "เรียงตาม" dropdown to sort plugins by name, author or status
+
 ## [0.1.0] - 2026-10-11
 
 ### Added

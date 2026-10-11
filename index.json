@@ -4,6 +4,7 @@
     {
       "id": "skp_cm_extensions_hub",
       "name": "SKP CM Extensions Hub",
+      "author": "Bhurivaj Padcharaditthakul",
       "repo": "bhurivaj/skp_cm_extensions_hub",
       "description": "ติดตั้ง / อัปเดต plugins ของ SKP CM",
       "files": ["skp_cm_extensions_hub.rb", "skp_cm_extensions_hub/"]
@@ -11,6 +12,7 @@
     {
       "id": "skp_cm_boq_counter",
       "name": "SKP CM BoQ Counter",
+      "author": "Bhurivaj Padcharaditthakul",
       "repo": "bhurivaj/skp_cm_boq_counter",
       "description": "ถอด BOQ จาก component, export CSV",
       "files": ["skp_cm_boq_counter.rb", "skp_cm_boq_counter/"]
@@ -18,6 +20,7 @@
     {
       "id": "skp_cm_grid_dimension",
       "name": "SKP CM Grid Dimension",
+      "author": "Bhurivaj Padcharaditthakul",
       "repo": "bhurivaj/skp_cm_grid_dimension",
       "description": "สร้าง grid line + label + elevation",
       "files": ["skp_cm_grid_dimension.rb", "skp_cm_grid_dimension/"]
@@ -25,6 +28,7 @@
     {
       "id": "ropefall",
       "name": "Ropefall",
+      "author": "Balazs Torma",
       "repo": "bhurivaj/ropefall",
       "description": "จำลองเชือก / สายไฟตกด้วย physics",
       "files": ["sketchrope_ropefall.rb", "sketchrope_ropefall/"]

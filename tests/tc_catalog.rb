@@ -56,7 +56,7 @@ class TestCatalog < Minitest::Test
     plugins = C.parse_index(File.read(path))
     assert_equal C::HUB_ID, plugins.first['id']
     plugins.each do |p|
-      %w[id name repo description].each { |k| refute_empty p[k].to_s, "#{p['id']} missing #{k}" }
+      %w[id name repo description author].each { |k| refute_empty p[k].to_s, "#{p['id']} missing #{k}" }
       refute_empty p['files'], "#{p['id']} has no files"
     end
     assert_equal plugins.size, plugins.map { |p| p['id'] }.uniq.size, 'duplicate ids'
@@ -85,6 +85,11 @@ class TestCatalog < Minitest::Test
     assert_equal '2.0.1', e['latest_version']
     assert_equal 'https://x/r.rbz', e['asset_url']
     assert_equal 'notes for v2.0.1', e['notes']
+  end
+
+  def test_author_is_passed_through
+    assert_equal 'Balazs Torma', entry(item: ITEM.merge('author' => 'Balazs Torma'))['author']
+    assert_equal '', entry['author'], 'missing author becomes empty string'
   end
 
   def test_update_available

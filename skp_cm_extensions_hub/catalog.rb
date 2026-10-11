@@ -57,7 +57,7 @@ module SkpCm
 
         {
           'id' => item['id'], 'name' => item['name'], 'description' => item['description'],
-          'repo' => item['repo'], 'files' => files,
+          'author' => item['author'].to_s, 'repo' => item['repo'], 'files' => files,
           'installed' => installed, 'installed_version' => installed_version,
           'latest_version' => latest, 'notes' => release ? release['body'].to_s : '',
           'asset_url' => asset ? asset['browser_download_url'] : nil,

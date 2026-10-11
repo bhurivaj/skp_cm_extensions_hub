@@ -13,7 +13,8 @@
   .card { background: #fff; border-radius: 6px; padding: 12px; margin-bottom: 10px; box-shadow: 0 1px 2px rgba(0,0,0,.1); }
   .row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
   .name { font-weight: 600; font-size: 14px; }
-  .desc, .ver { color: #555; margin-top: 4px; }
+  .desc, .author, .ver { color: #555; margin-top: 4px; }
+  .toolbar { display: flex; justify-content: flex-end; align-items: center; gap: 6px; margin-bottom: 8px; }
   .badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; background: #eee; white-space: nowrap; }
   .badge.update_available { background: #fff3cd; }
   .badge.up_to_date { background: #e6f4ea; }
@@ -33,10 +34,40 @@
   <button id="refresh">รีเฟรช</button>
 </header>
 <div id="message"></div>
+<div class="toolbar">
+  <label for="sort">เรียงตาม:</label>
+  <select id="sort">
+    <option value="name">ชื่อ</option>
+    <option value="author">ผู้พัฒนา</option>
+    <option value="status">สถานะ</option>
+  </select>
+</div>
 <div id="list">กำลังโหลด…</div>
 
 <script>
   var STATUS_TEXT = { not_installed: 'ยังไม่ติดตั้ง', update_available: 'มีอัปเดต', up_to_date: 'ล่าสุดแล้ว', unknown: 'ไม่ทราบสถานะ' };
+  var STATUS_ORDER = ['update_available', 'up_to_date', 'unknown', 'not_installed'];
+  var currentEntries = [];
+
+  function byText(a, b) {
+    return String(a || '').localeCompare(String(b || ''), undefined, { sensitivity: 'base' });
+  }
+
+  function statusRank(e) {
+    var i = STATUS_ORDER.indexOf(e.status);
+    return i < 0 ? STATUS_ORDER.length : i;
+  }
+
+  // ties always fall back to the plugin name
+  function sortEntries(entries, key) {
+    return entries.slice().sort(function (a, b) {
+      var primary = 0;
+      // plugins without an author go last
+      if (key === 'author') primary = (!a.author - !b.author) || byText(a.author, b.author);
+      if (key === 'status') primary = statusRank(a) - statusRank(b);
+      return primary || byText(a.name, b.name);
+    });
+  }
 
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
@@ -76,6 +107,7 @@
       '<div class="row"><span class="name">' + esc(e.name) + '</span>' +
       '<span class="badge ' + esc(e.status) + '">' + esc(STATUS_TEXT[e.status] || e.status) + '</span></div>' +
       '<div class="desc">' + esc(e.description) + '</div>' +
+      '<div class="author">โดย: ' + esc(e.author || '-') + '</div>' +
       '<div class="ver">' + ver + '</div>' +
       (e.error ? '<div class="err">' + esc(e.error) + '</div>' : '') +
       '<div class="state">' + state + '</div>' +
@@ -89,8 +121,10 @@
       document.getElementById('list').textContent = 'กำลังโหลด…';
     },
     render: function (entries) {
+      currentEntries = entries;
+      var sorted = sortEntries(entries, document.getElementById('sort').value);
       var list = document.getElementById('list');
-      list.innerHTML = entries.length ? entries.map(cardHtml).join('') : 'ไม่มีรายการ plugin';
+      list.innerHTML = sorted.length ? sorted.map(cardHtml).join('') : 'ไม่มีรายการ plugin';
     },
     busy: function (id, text) {
       var card = document.querySelector('.card[data-id="' + id + '"]');
@@ -119,6 +153,10 @@
       hub.message('', '');
       callRuby(action, id);
     }
+  });
+
+  document.getElementById('sort').addEventListener('change', function () {
+    hub.render(currentEntries);
   });
 
   document.getElementById('refresh').addEventListener('click', function () {
