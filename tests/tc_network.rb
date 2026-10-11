@@ -145,4 +145,43 @@ class TestNetwork < Minitest::Test
     assert_nil H.redirect_location(302, {})
     assert_nil H.redirect_location(302, nil)
   end
+
+  def test_load_bad_plugin_entry_calls_done_once
+    [nil, 5].each do |bad|
+      body = JSON.generate('schema' => 1, 'plugins' => [bad])
+      stub_http(C::INDEX_URL => [200, body, nil])
+      calls = []
+      C.load { |entries, error| calls << [entries, error] }
+      assert_equal [[nil, C::MSG_BAD_INDEX]], calls, "plugin entry: #{bad.inspect}"
+    end
+  end
+
+  def test_load_build_entry_raising_calls_done_once
+    stub_http(C::INDEX_URL => [200, JSON.generate(INDEX), nil],
+              api('u/a') => [404, '{}', nil], api('u/b') => [404, '{}', nil])
+    original = C.method(:build_entry)
+    C.define_singleton_method(:build_entry) { |*_a, **_k| raise 'boom' }
+    calls = []
+    begin
+      C.load { |entries, error| calls << [entries, error] }
+    ensure
+      C.define_singleton_method(:build_entry, original)
+    end
+    assert_equal [[nil, C::MSG_BAD_INDEX]], calls
+  end
+
+  def test_install_archive_raising_calls_done_once
+    stub_http('https://dl/v1' => [200, 'RBZDATA', nil])
+    original = I.method(:install_archive)
+    I.define_singleton_method(:install_archive) { |*| raise 'boom' }
+    calls = []
+    begin
+      I.install('id' => 'a', 'name' => 'A', 'asset_url' => 'https://dl/v1') { |ok, msg| calls << [ok, msg] }
+    ensure
+      I.define_singleton_method(:install_archive, original)
+    end
+    assert_equal 1, calls.size
+    refute calls[0][0]
+    assert_includes calls[0][1], 'boom'
+  end
 end

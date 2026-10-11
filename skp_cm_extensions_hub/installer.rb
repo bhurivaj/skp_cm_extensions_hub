@@ -74,7 +74,13 @@ module SkpCm
             if error || status != 200
               done.call(false, "ดาวน์โหลดไม่สำเร็จ (#{error || "HTTP #{status}"})")
             else
-              done.call(*install_archive(entry, body))
+              result =
+                begin
+                  install_archive(entry, body)
+                rescue StandardError => e
+                  [false, "ติดตั้งไม่สำเร็จ: #{e.message}"]
+                end
+              done.call(*result)
             end
           end
         end

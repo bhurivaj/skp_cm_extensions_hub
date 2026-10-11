@@ -90,9 +90,27 @@ module SkpCm
               next done.call(nil, MSG_SCHEMA)
             rescue JSON::ParserError
               next done.call(nil, MSG_BAD_INDEX)
+            rescue StandardError => e
+              log_error(e)
+              next done.call(nil, MSG_BAD_INDEX)
             end
-          fetch_releases(items, &done)
+          start_fetch(items, &done)
         end
+      end
+
+      # fetch_releases may raise on a malformed item before any request is sent; done is still called once
+      def start_fetch(items, &done)
+        started = false
+        begin
+          fetch_releases(items) { |*args| started = true; done.call(*args) }
+        rescue StandardError => e
+          log_error(e)
+          done.call(nil, MSG_BAD_INDEX) unless started
+        end
+      end
+
+      def log_error(error)
+        puts "[SkpCm::ExtensionsHub] #{error.class}: #{error.message}"
       end
 
       def fetch_releases(items, &done)
@@ -119,14 +137,20 @@ module SkpCm
       end
 
       def finish(items, results, &done)
-        plugins_dir = Sketchup.find_support_file('Plugins')
-        entries = items.each_with_index.map do |item, i|
-          release, error = results[i]
-          ext = Sketchup.extensions[item['name']]
-          build_entry(item, plugins_dir: plugins_dir, installed_version: ext ? ext.version : nil,
-                            release: release, release_error: error)
-        end
-        done.call(entries, nil)
+        entries =
+          begin
+            plugins_dir = Sketchup.find_support_file('Plugins')
+            items.each_with_index.map do |item, i|
+              release, error = results[i]
+              ext = Sketchup.extensions[item['name']]
+              build_entry(item, plugins_dir: plugins_dir, installed_version: ext ? ext.version : nil,
+                                release: release, release_error: error)
+            end
+          rescue StandardError => e
+            log_error(e)
+            nil
+          end
+        entries ? done.call(entries, nil) : done.call(nil, MSG_BAD_INDEX)
       end
     end
   end
