@@ -30,7 +30,7 @@ module SkpCm
           return [false, "index.json ไม่ถูกต้องสำหรับ #{entry['name']}"] if paths.empty? || paths.include?(nil)
 
           ext = Sketchup.extensions[entry['name']]
-          ext.uncheck if ext
+          return [false, "ปิดใช้งาน #{entry['name']} ก่อนถอน"] if ext && ext.load_on_start?
 
           paths.each do |path|
             next unless File.exist?(path)
@@ -44,6 +44,23 @@ module SkpCm
           return [false, "ลบไม่สำเร็จ:\n#{failed.join("\n")}"] unless failed.empty?
 
           [true, "ถอน #{entry['name']} แล้ว — ปิดแล้วเปิด SketchUp ใหม่ให้มีผลสมบูรณ์"]
+        end
+
+        # Enable / disable in Extension Manager. Disabling only takes full effect after a restart
+        # (SketchUp cannot unload Ruby code that is already running).
+        def set_enabled(entry, on)
+          return [false, 'เปิด/ปิด Hub จากใน Hub ไม่ได้ — ใช้ Extension Manager ของ SketchUp'] if entry['id'] == Catalog::HUB_ID
+
+          ext = Sketchup.extensions[entry['name']]
+          return [false, "ไม่พบ #{entry['name']} ใน Extension Manager"] unless ext
+
+          if on
+            ext.check
+            [true, "เปิดใช้งาน #{entry['name']} แล้ว"]
+          else
+            ext.uncheck
+            [true, "ปิดใช้งาน #{entry['name']} แล้ว — มีผลสมบูรณ์หลัง restart SketchUp (ตอนนี้ถอนได้แล้ว)"]
+          end
         end
 
         def install_archive(entry, data)

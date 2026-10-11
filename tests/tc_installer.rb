@@ -55,6 +55,7 @@ class TestInstaller < Minitest::Test
   def test_remove_deletes_listed_files_only
     make_plugin
     ext = Sketchup::FakeExtension.new('2.0.0')
+    ext.uncheck
     Sketchup.extensions = { 'Ropefall' => ext }
     ok, msg = I.remove(entry)
     assert ok, msg
@@ -82,6 +83,47 @@ class TestInstaller < Minitest::Test
     ok, msg = I.remove(entry('id' => SkpCm::ExtensionsHub::Catalog::HUB_ID))
     refute ok
     assert_includes msg, 'Hub'
+  end
+
+  def test_remove_refuses_enabled_extension
+    make_plugin
+    Sketchup.extensions = { 'Ropefall' => Sketchup::FakeExtension.new('2.0.0') }
+    ok, msg = I.remove(entry)
+    refute ok
+    assert_includes msg, 'ปิดใช้งาน'
+    assert File.exist?(File.join(@plugins, 'sketchrope_ropefall.rb'))
+  end
+
+  # --- set_enabled ---
+
+  def test_disable_unchecks_extension
+    ext = Sketchup::FakeExtension.new('2.0.0')
+    Sketchup.extensions = { 'Ropefall' => ext }
+    ok, msg = I.set_enabled(entry, false)
+    assert ok
+    refute ext.load_on_start?
+    assert_includes msg, 'restart'
+  end
+
+  def test_enable_checks_extension
+    ext = Sketchup::FakeExtension.new('2.0.0')
+    ext.uncheck
+    Sketchup.extensions = { 'Ropefall' => ext }
+    ok, = I.set_enabled(entry, true)
+    assert ok
+    assert ext.load_on_start?
+  end
+
+  def test_set_enabled_unknown_extension_fails
+    ok, msg = I.set_enabled(entry, false)
+    refute ok
+    assert_includes msg, 'Ropefall'
+  end
+
+  def test_set_enabled_refuses_hub_itself
+    Sketchup.extensions = { 'Hub' => Sketchup::FakeExtension.new('0.2.0') }
+    ok, = I.set_enabled(entry('id' => SkpCm::ExtensionsHub::Catalog::HUB_ID, 'name' => 'Hub'), false)
+    refute ok
   end
 
   def test_remove_missing_files_is_ok

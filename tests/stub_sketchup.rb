@@ -12,6 +12,12 @@ module Sketchup
 
     def check
       @checked = true
+      @unchecked = false
+    end
+
+    # enabled in Extension Manager (true until unchecked)
+    def load_on_start?
+      !@unchecked
     end
 
     def loaded?

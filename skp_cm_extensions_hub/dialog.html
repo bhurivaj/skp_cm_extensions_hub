@@ -93,7 +93,11 @@
       html += '<button data-action="install"' + (e.asset_url ? '' : ' disabled') + '>อัปเดต</button>';
     }
     if (e.installed && !e.self) {
-      html += '<button data-action="remove">ถอน</button>';
+      // Guard against accidental removal: "ถอน" only appears after the plugin is disabled.
+      // enabled === null means SketchUp does not know the extension — it can only be removed.
+      if (e.enabled === true) html += '<button data-action="disable">ปิดใช้งาน</button>';
+      if (e.enabled === false) html += '<button data-action="enable">เปิดใช้งาน</button>';
+      if (e.enabled !== true) html += '<button data-action="remove">ถอน</button>';
     }
     return html;
   }

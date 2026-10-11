@@ -46,7 +46,8 @@ module SkpCm
         end
       end
 
-      def build_entry(item, plugins_dir:, installed_version:, release: nil, release_error: nil)
+      # enabled: true/false from Extension Manager, nil when SketchUp has no such extension
+      def build_entry(item, plugins_dir:, installed_version:, release: nil, release_error: nil, enabled: nil)
         files = Array(item['files'])
         installed = !files.empty? && !plugins_dir.nil? && File.exist?(File.join(plugins_dir, files.first))
         latest = release ? release['tag_name'].to_s.sub(/\Av/, '') : ''
@@ -62,8 +63,14 @@ module SkpCm
           'latest_version' => latest, 'notes' => release ? release['body'].to_s : '',
           'asset_url' => asset ? asset['browser_download_url'] : nil,
           'status' => status_for(installed, installed_version, latest),
-          'error' => error, 'self' => item['id'] == HUB_ID
+          'error' => error, 'self' => item['id'] == HUB_ID, 'enabled' => enabled
         }
+      end
+
+      # Guard against accidental removal: a plugin must be disabled first.
+      # Unknown state (files present but not registered) stays removable so it can still be cleaned up.
+      def can_remove?(entry)
+        entry['installed'] && !entry['self'] && entry['enabled'] != true
       end
 
       def status_for(installed, installed_version, latest)
@@ -146,7 +153,8 @@ module SkpCm
               release, error = results[i]
               ext = Sketchup.extensions[item['name']]
               build_entry(item, plugins_dir: plugins_dir, installed_version: ext ? ext.version : nil,
-                                release: release, release_error: error)
+                                release: release, release_error: error,
+                                enabled: ext ? ext.load_on_start? : nil)
             end
           rescue StandardError => e
             log_error(e)

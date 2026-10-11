@@ -32,9 +32,9 @@ class TestCatalog < Minitest::Test
     { 'tag_name' => tag, 'body' => "notes for #{tag}", 'assets' => assets }
   end
 
-  def entry(installed_version: nil, release: nil, release_error: nil, item: ITEM)
+  def entry(installed_version: nil, release: nil, release_error: nil, item: ITEM, enabled: nil)
     C.build_entry(item, plugins_dir: @plugins, installed_version: installed_version,
-                        release: release, release_error: release_error)
+                        release: release, release_error: release_error, enabled: enabled)
   end
 
   # --- parse_index ---
@@ -150,6 +150,34 @@ class TestCatalog < Minitest::Test
   end
 
   # --- mark_pending ---
+
+  # --- enabled / can_remove? ---
+
+  def test_enabled_flag_is_passed_through
+    install_loader
+    assert_equal true, entry(installed_version: '2.0.0', enabled: true)['enabled']
+    assert_equal false, entry(installed_version: '2.0.0', enabled: false)['enabled']
+    assert_nil entry(installed_version: '2.0.0')['enabled']
+  end
+
+  def test_can_remove_only_when_disabled
+    install_loader
+    refute C.can_remove?(entry(installed_version: '2.0.0', enabled: true))
+    assert C.can_remove?(entry(installed_version: '2.0.0', enabled: false))
+  end
+
+  # files exist but SketchUp has no such extension (e.g. failed to load): must still be removable
+  def test_can_remove_when_extension_unknown
+    install_loader
+    assert C.can_remove?(entry(enabled: nil))
+  end
+
+  def test_cannot_remove_when_not_installed_or_hub
+    refute C.can_remove?(entry(enabled: false))
+    hub = ITEM.merge('id' => C::HUB_ID, 'files' => ['sketchrope_ropefall.rb'])
+    install_loader
+    refute C.can_remove?(entry(item: hub, installed_version: '0.2.0', enabled: false))
+  end
 
   def test_mark_pending
     entries = [{ 'id' => 'a' }, { 'id' => 'b' }]

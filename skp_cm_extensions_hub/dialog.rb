@@ -32,6 +32,8 @@ module SkpCm
           dialog.add_action_callback('refresh') { |_ctx| guard { refresh } }
           dialog.add_action_callback('install') { |_ctx, id| guard { install(id) } }
           dialog.add_action_callback('remove') { |_ctx, id| guard { remove(id) } }
+          dialog.add_action_callback('enable') { |_ctx, id| guard { set_enabled(id, true) } }
+          dialog.add_action_callback('disable') { |_ctx, id| guard { set_enabled(id, false) } }
           dialog
         end
 
@@ -68,9 +70,19 @@ module SkpCm
           end
         end
 
+        def set_enabled(id, on)
+          entry = find(id)
+          return unless entry
+
+          ok, text = Installer.set_enabled(entry, on)
+          message(text, ok ? 'info' : 'error')
+          refresh
+        end
+
         def remove(id)
           entry = find(id)
           return unless entry
+          return message("ปิดใช้งาน #{entry['name']} ก่อนถอน", 'error') unless Catalog.can_remove?(entry)
 
           answer = UI.messagebox("ถอน #{entry['name']} ออกจาก SketchUp?\n\nไฟล์ของ plugin จะถูกลบจากโฟลเดอร์ Plugins", MB_YESNO)
           return unless answer == IDYES
