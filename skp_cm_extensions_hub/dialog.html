@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>SKP CM Extensions Hub</title>
+<style>
+  body { font-family: -apple-system, "Segoe UI", Tahoma, sans-serif; margin: 0; padding: 16px; background: #f4f4f5; color: #222; font-size: 13px; }
+  header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  h1 { font-size: 16px; margin: 0; }
+  #message { display: none; padding: 8px 10px; border-radius: 4px; margin-bottom: 12px; white-space: pre-wrap; }
+  #message.info { display: block; background: #e6f4ea; }
+  #message.error { display: block; background: #fdecea; color: #8a1c14; }
+  .card { background: #fff; border-radius: 6px; padding: 12px; margin-bottom: 10px; box-shadow: 0 1px 2px rgba(0,0,0,.1); }
+  .row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .name { font-weight: 600; font-size: 14px; }
+  .desc, .ver { color: #555; margin-top: 4px; }
+  .badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; background: #eee; white-space: nowrap; }
+  .badge.update_available { background: #fff3cd; }
+  .badge.up_to_date { background: #e6f4ea; }
+  .err { color: #b3261e; margin-top: 4px; }
+  .state { color: #555; margin-top: 4px; }
+  .actions { margin-top: 8px; display: flex; gap: 6px; align-items: center; }
+  button { padding: 4px 12px; cursor: pointer; }
+  button:disabled { cursor: default; opacity: .5; }
+  .link { color: #1a73e8; cursor: pointer; margin-left: auto; }
+  .notes { display: none; white-space: pre-wrap; background: #fafafa; border: 1px solid #eee; padding: 8px; margin-top: 8px; max-height: 220px; overflow: auto; }
+  .notes.open { display: block; }
+</style>
+</head>
+<body>
+<header>
+  <h1>SKP CM Extensions Hub</h1>
+  <button id="refresh">รีเฟรช</button>
+</header>
+<div id="message"></div>
+<div id="list">กำลังโหลด…</div>
+
+<script>
+  var STATUS_TEXT = { not_installed: 'ยังไม่ติดตั้ง', update_available: 'มีอัปเดต', up_to_date: 'ล่าสุดแล้ว', unknown: 'ไม่ทราบสถานะ' };
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  function callRuby(name, arg) {
+    try {
+      if (arg === undefined) { sketchup[name](); } else { sketchup[name](arg); }
+    } catch (e) {
+      hub.message('เรียก SketchUp ไม่ได้: ' + e.message, 'error');
+    }
+  }
+
+  function buttonsFor(e) {
+    if (e.pending_restart) return '';
+    var html = '';
+    if (e.status === 'not_installed') {
+      html += '<button data-action="install"' + (e.asset_url ? '' : ' disabled') + '>ติดตั้ง</button>';
+    }
+    if (e.status === 'update_available') {
+      html += '<button data-action="install"' + (e.asset_url ? '' : ' disabled') + '>อัปเดต</button>';
+    }
+    if (e.installed && !e.self) {
+      html += '<button data-action="remove">ถอน</button>';
+    }
+    return html;
+  }
+
+  function cardHtml(e) {
+    var ver = (e.installed ? 'ติดตั้งอยู่: ' + esc(e.installed_version || '?') : 'ยังไม่ติดตั้ง') +
+              ' · ล่าสุด: ' + esc(e.latest_version || '-');
+    var state = e.pending_restart ? 'รอ restart SketchUp' : '';
+    var notes = e.notes ? '<span class="link" data-action="notes">release notes</span>' : '';
+    return '<div class="card" data-id="' + esc(e.id) + '">' +
+      '<div class="row"><span class="name">' + esc(e.name) + '</span>' +
+      '<span class="badge ' + esc(e.status) + '">' + esc(STATUS_TEXT[e.status] || e.status) + '</span></div>' +
+      '<div class="desc">' + esc(e.description) + '</div>' +
+      '<div class="ver">' + ver + '</div>' +
+      (e.error ? '<div class="err">' + esc(e.error) + '</div>' : '') +
+      '<div class="state">' + state + '</div>' +
+      '<div class="actions">' + buttonsFor(e) + notes + '</div>' +
+      (e.notes ? '<div class="notes">' + esc(e.notes) + '</div>' : '') +
+      '</div>';
+  }
+
+  var hub = {
+    loading: function () {
+      document.getElementById('list').textContent = 'กำลังโหลด…';
+    },
+    render: function (entries) {
+      var list = document.getElementById('list');
+      list.innerHTML = entries.length ? entries.map(cardHtml).join('') : 'ไม่มีรายการ plugin';
+    },
+    busy: function (id, text) {
+      var card = document.querySelector('.card[data-id="' + id + '"]');
+      if (!card) return;
+      card.querySelectorAll('button').forEach(function (b) { b.disabled = true; });
+      card.querySelector('.state').textContent = text;
+    },
+    message: function (text, kind) {
+      var m = document.getElementById('message');
+      m.className = text ? kind : '';
+      m.textContent = text || '';
+    }
+  };
+
+  document.getElementById('list').addEventListener('click', function (ev) {
+    var action = ev.target.getAttribute('data-action');
+    if (!action || ev.target.disabled) return;
+    var card = ev.target.closest('.card');
+    var id = card.getAttribute('data-id');
+    if (action === 'notes') {
+      card.querySelector('.notes').classList.toggle('open');
+    } else {
+      hub.message('', '');
+      callRuby(action, id);
+    }
+  });
+
+  document.getElementById('refresh').addEventListener('click', function () {
+    hub.message('', '');
+    callRuby('refresh');
+  });
+
+  document.addEventListener('DOMContentLoaded', function () { callRuby('ready'); });
+</script>
+</body>
+</html>
