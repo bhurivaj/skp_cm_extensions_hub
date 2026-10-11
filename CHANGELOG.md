@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.3.0] - 2026-10-11
 
 ### Added
 - ปุ่ม "ปิดใช้งาน" / "เปิดใช้งาน" plugin จากใน Hub (Extension Manager) — ปิดใช้งานมีผลสมบูรณ์หลัง restart SketchUp
