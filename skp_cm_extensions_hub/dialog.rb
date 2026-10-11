@@ -27,7 +27,8 @@ module SkpCm
             style: UI::HtmlDialog::STYLE_DIALOG
           )
           dialog.set_file(File.join(PLUGIN_DIR, 'dialog.html'))
-          dialog.add_action_callback('ready') { |_ctx| guard { refresh } }
+          dialog.add_action_callback('ready') { |_ctx| guard { js("hub.title(#{JSON.generate("#{PLUGIN_NAME} v#{VERSION}")})")
+            refresh } }
           dialog.add_action_callback('refresh') { |_ctx| guard { refresh } }
           dialog.add_action_callback('install') { |_ctx, id| guard { install(id) } }
           dialog.add_action_callback('remove') { |_ctx, id| guard { remove(id) } }

@@ -29,7 +29,7 @@
 </head>
 <body>
 <header>
-  <h1>SKP CM Extensions Hub</h1>
+  <h1 id="title">SKP CM Extensions Hub</h1>
   <button id="refresh">รีเฟรช</button>
 </header>
 <div id="message"></div>
@@ -102,6 +102,9 @@
       var m = document.getElementById('message');
       m.className = text ? kind : '';
       m.textContent = text || '';
+    },
+    title: function (text) {
+      document.getElementById('title').textContent = text;
     }
   };
 
