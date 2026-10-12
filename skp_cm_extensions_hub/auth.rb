@@ -65,6 +65,39 @@ module SkpCm
           end
         end
 
+        # Moves an account saved by another plugin (BoQ 1.x) — only when the Hub has none yet
+        def import_credentials(user, pass, &done)
+          return call_safely(done, false, 'already has account') if username
+
+          login(user, pass, &done)
+        end
+
+        # Returns false (nothing saved) unless the URL is http(s)
+        def save_api_base_url(url)
+          url = url.to_s.strip.chomp('/')
+          return false unless url =~ %r{\Ahttps?://\S+\z}
+
+          change do
+            @token = nil
+            save('api_base_url' => url)
+          end
+          true
+        end
+
+        # listener.call(logged_in) whenever logged_in? or the token changes; returns the listener for off_change
+        def on_change(&listener)
+          listeners << listener if listener
+          listener
+        end
+
+        def off_change(listener)
+          listeners.delete(listener)
+        end
+
+        def show_login
+          Dialog.show
+        end
+
         # Tests only: forget everything held in memory
         def reset!
           @state = @token = @waiting = @listeners = nil

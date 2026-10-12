@@ -140,4 +140,59 @@ class TestAuth < Minitest::Test
                  'api_base_url' => 'https://odoo.catice.co', 'busy' => false }
     assert_equal expected, A.status
   end
+
+  def test_listeners_called_only_on_change_and_errors_isolated
+    stub_post(OK, OK)
+    calls = []
+    A.on_change { |_| raise 'boom' }
+    A.on_change { |v| calls << v }
+    login
+    login # same token again → nothing changed
+    assert_equal [true], calls
+    A.logout
+    assert_equal [true, false], calls
+  end
+
+  def test_off_change
+    stub_post(OK)
+    calls = []
+    listener = A.on_change { |v| calls << v }
+    A.off_change(listener)
+    login
+    assert_empty calls
+  end
+
+  def test_import_refused_when_account_exists
+    stub_post(OK)
+    login
+    result = nil
+    A.import_credentials('other', 'x') { |ok, err| result = [ok, err] }
+    assert_equal [false, 'already has account'], result
+    assert_equal 1, @posts.size
+    assert_equal 'a@b.c', A.username
+  end
+
+  def test_import_when_hub_has_no_account
+    stub_post(OK)
+    result = nil
+    A.import_credentials('old@b.c', 'pw') { |ok, _| result = ok }
+    assert_equal true, result
+    assert_equal 'old@b.c', A.username
+  end
+
+  def test_save_api_base_url
+    stub_post(OK, OK)
+    login
+    calls = []
+    A.on_change { |v| calls << v }
+    assert_equal false, A.save_api_base_url('ftp://x.test')
+    assert_equal false, A.save_api_base_url('')
+    assert_equal 'tok1', A.token
+    assert_equal true, A.save_api_base_url(' https://new.test/ ')
+    assert_nil A.token, 'a token from the old server is useless'
+    assert_equal [true], calls
+    assert_equal 'https://new.test', S.load['api_base_url']
+    A.relogin {}
+    assert_equal 'https://new.test/auth/login/access-token', @posts.last[0]
+  end
 end
