@@ -134,8 +134,10 @@
       '<button data-auth="save_api_url">บันทึก</button></div></details>';
     if (a.logged_in) {
       return '<div class="row"><span class="name">🔒 ' + esc(a.username) +
-        (a.online ? '' : ' <span class="badge">ออฟไลน์</span>') + '</span>' +
-        '<button data-auth="logout">Logout</button></div>' + settings;
+        (a.online ? '' : ' <span class="badge">ออฟไลน์</span>') + '</span><span>' +
+        (a.online ? '' : '<button data-auth="reconnect"' + (a.busy ? ' disabled' : '') + '>' +
+          (a.busy ? 'กำลังเชื่อมต่อ…' : 'เชื่อมต่อใหม่') + '</button> ') +
+        '<button data-auth="logout">Logout</button></span></div>' + settings;
     }
     return '<div class="name">บัญชี — login เพื่อปลดล็อคฟีเจอร์พิเศษ</div>' +
       '<div class="actions">' +

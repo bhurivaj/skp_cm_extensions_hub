@@ -37,6 +37,7 @@ module SkpCm
           end
           dialog.add_action_callback('login') { |_ctx, json| guard { login(json) } }
           dialog.add_action_callback('logout') { |_ctx| guard { Auth.logout; push_auth } }
+          dialog.add_action_callback('reconnect') { |_ctx| guard { reconnect } }
           dialog.add_action_callback('save_api_url') { |_ctx, url| guard { save_api_url(url) } }
           watch_auth
           dialog.add_action_callback('refresh') { |_ctx| guard { refresh } }
@@ -112,6 +113,17 @@ module SkpCm
             end
           end
           push_auth # shows "กำลัง login…" while the request is in flight
+        end
+
+        # Logged in but offline (e.g. SketchUp started before the network was up)
+        def reconnect
+          Auth.relogin do |ok, error|
+            guard do
+              push_auth
+              message(error, 'error') unless ok
+            end
+          end
+          push_auth
         end
 
         def save_api_url(url)
