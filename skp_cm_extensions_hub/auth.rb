@@ -3,6 +3,7 @@
 require 'json'
 require_relative 'http'
 require_relative 'auth_store'
+require_relative 'odoo_rpc'
 
 module SkpCm
   module ExtensionsHub
@@ -196,13 +197,7 @@ module SkpCm
         end
 
         def odoo_error(info)
-          return 'ไม่ทราบสาเหตุ' unless info.is_a?(Hash)
-
-          detail = info['data']
-          text = (detail.is_a?(Hash) && detail['message']) || info['message']
-          # the last line says what is wrong ("database ... does not exist"); earlier lines may hold server internals
-          line = text.to_s.strip.lines.last.to_s.strip
-          line.empty? ? 'ไม่ทราบสาเหตุ' : line
+          OdooRpc.error_line(info)
         end
 
         # Runs the block; tells listeners when logged_in? or the uid changed
