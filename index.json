@@ -32,6 +32,14 @@
       "repo": "bhurivaj/ropefall",
       "description": "จำลองเชือก / สายไฟตกด้วย physics",
       "files": ["sketchrope_ropefall.rb", "sketchrope_ropefall/"]
+    },
+    {
+      "id": "skp_cm_layout_generator",
+      "name": "SKP CM Layout Generator",
+      "author": "Bhurivaj Padcharaditthakul",
+      "repo": "bhurivaj/skp_cm_layout_generator",
+      "description": "สร้าง / ต่อท้าย LayOut ของโครงการจาก template + ข้อมูล Odoo (ต้องใช้ Hub 0.5.0+)",
+      "files": ["skp_cm_layout_generator.rb", "skp_cm_layout_generator/"]
     }
   ]
 }
