@@ -11,6 +11,7 @@ module SkpCm
     # do not rename them or change their arguments (docs/specs/2026-10-12-hub-auth-design.md §3.4, §7).
     module Auth
       RPC_PATH = '/jsonrpc'
+      MSG_NOT_LOGGED_IN = 'ยังไม่ได้ login Odoo — เปิด SKP CM Extensions Hub เพื่อ login'
 
       class << self
         # Odoo user id; nil until the server accepted the login in this SketchUp session
@@ -105,6 +106,21 @@ module SkpCm
           Dialog.show
         end
 
+        # Calls an Odoo model for another plugin; the Hub adds database, uid and password.
+        # done.call(true, result) or done.call(false, message) — exactly once.
+        def execute_kw(model, method, args, kwargs = {}, &done)
+          unless model.is_a?(String) && !model.empty? && method.is_a?(String) && !method.empty? &&
+                 args.is_a?(Array) && kwargs.is_a?(Hash)
+            return call_safely(done, false, 'execute_kw: argument ไม่ถูกต้อง')
+          end
+          return call_safely(done, false, MSG_NOT_LOGGED_IN) unless logged_in?
+          return send_execute_kw(model, method, args, kwargs, done) if @uid
+
+          relogin do |ok, message|
+            ok ? send_execute_kw(model, method, args, kwargs, done) : call_safely(done, false, message)
+          end
+        end
+
         # Tests only: forget everything held in memory
         def reset!
           @state = @uid = @waiting = @waiting_key = @listeners = nil
@@ -152,6 +168,15 @@ module SkpCm
           waiting = @waiting || []
           @waiting = @waiting_key = nil
           waiting.each { |cb| call_safely(cb, false, 'ยกเลิกแล้ว') }
+        end
+
+        def send_execute_kw(model, method, args, kwargs, done)
+          payload = OdooRpc.execute_kw_payload(database, @uid, state['password'], model, method, args, kwargs)
+          Http.post_json(api_base_url + RPC_PATH, payload) do |status, body, error|
+            kind, value = OdooRpc.parse_result(status, body, error)
+            change { @uid = nil } if kind == :denied
+            call_safely(done, kind == :ok, value)
+          end
         end
 
         # Odoo JSON-RPC common.authenticate (spec §7)

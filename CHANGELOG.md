@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- Ruby API `SkpCm::ExtensionsHub::Auth.execute_kw(model, method, args, kwargs) { |ok, result_or_error| }` ให้ plugins อื่นเรียก model ของ Odoo ด้วยบัญชีที่ login ไว้ใน Hub (ไม่เห็น password) — login ใหม่ให้เองถ้ายังไม่ได้เชื่อมต่อรอบนี้
+
 ## [0.4.0] - 2026-10-12
 
 ### Added
