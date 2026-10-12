@@ -26,7 +26,7 @@ module Sketchup
   end
 
   class << self
-    attr_accessor :plugins_dir, :extensions, :archives, :install_error, :archive_paths
+    attr_accessor :plugins_dir, :extensions, :archives, :install_error, :archive_paths, :platform
 
     def find_support_file(name)
       name == 'Plugins' ? plugins_dir : nil
