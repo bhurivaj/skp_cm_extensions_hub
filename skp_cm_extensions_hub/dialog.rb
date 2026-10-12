@@ -3,6 +3,7 @@
 require 'json'
 require_relative 'catalog'
 require_relative 'installer'
+require_relative 'auth'
 
 module SkpCm
   module ExtensionsHub
@@ -27,8 +28,17 @@ module SkpCm
             style: UI::HtmlDialog::STYLE_DIALOG
           )
           dialog.set_file(File.join(PLUGIN_DIR, 'dialog.html'))
-          dialog.add_action_callback('ready') { |_ctx| guard { js("hub.title(#{JSON.generate("#{PLUGIN_NAME} v#{VERSION}")})")
-            refresh } }
+          dialog.add_action_callback('ready') do |_ctx|
+            guard do
+              js("hub.title(#{JSON.generate("#{PLUGIN_NAME} v#{VERSION}")})")
+              push_auth
+              refresh
+            end
+          end
+          dialog.add_action_callback('login') { |_ctx, json| guard { login(json) } }
+          dialog.add_action_callback('logout') { |_ctx| guard { Auth.logout; push_auth } }
+          dialog.add_action_callback('save_api_url') { |_ctx, url| guard { save_api_url(url) } }
+          watch_auth
           dialog.add_action_callback('refresh') { |_ctx| guard { refresh } }
           dialog.add_action_callback('install') { |_ctx, id| guard { install(id) } }
           dialog.add_action_callback('remove') { |_ctx, id| guard { remove(id) } }
@@ -91,6 +101,36 @@ module SkpCm
           pending_restart << id if ok
           message(text, ok ? 'info' : 'error')
           refresh
+        end
+
+        def login(json)
+          data = JSON.parse(json.to_s)
+          Auth.login(data['username'], data['password']) do |ok, error|
+            guard do
+              push_auth
+              message(error, 'error') unless ok
+            end
+          end
+          push_auth # shows "กำลัง login…" while the request is in flight
+        end
+
+        def save_api_url(url)
+          if Auth.save_api_base_url(url)
+            message('บันทึก API Base URL แล้ว', 'info')
+            Auth.relogin # with the saved account, if any
+          else
+            message('API Base URL ต้องขึ้นต้นด้วย http:// หรือ https://', 'error')
+          end
+          push_auth
+        end
+
+        def push_auth
+          js("hub.auth(#{JSON.generate(Auth.status)})")
+        end
+
+        # One listener for the whole session; js() does nothing while the dialog is closed
+        def watch_auth
+          @auth_listener ||= Auth.on_change { |_logged_in| guard { push_auth } }
         end
 
         def find(id)

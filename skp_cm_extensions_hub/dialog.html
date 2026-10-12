@@ -26,6 +26,8 @@
   .link { color: #1a73e8; cursor: pointer; margin-left: auto; }
   .notes { display: none; white-space: pre-wrap; background: #fafafa; border: 1px solid #eee; padding: 8px; margin-top: 8px; max-height: 220px; overflow: auto; }
   .notes.open { display: block; }
+  #account input { padding: 4px 6px; }
+  #account details { margin-top: 8px; }
 </style>
 </head>
 <body>
@@ -34,6 +36,7 @@
   <button id="refresh">รีเฟรช</button>
 </header>
 <div id="message"></div>
+<div id="account" class="card">กำลังโหลดบัญชี…</div>
 <div class="toolbar">
   <label for="sort">เรียงตาม:</label>
   <select id="sort">
@@ -120,6 +123,28 @@
       '</div>';
   }
 
+  function val(id) {
+    var el = document.getElementById(id);
+    return el ? el.value : '';
+  }
+
+  function accountHtml(a) {
+    var settings = '<details><summary>ตั้งค่าบัญชี</summary><div class="actions">' +
+      'API Base URL: <input id="auth-url" size="32" value="' + esc(a.api_base_url) + '">' +
+      '<button data-auth="save_api_url">บันทึก</button></div></details>';
+    if (a.logged_in) {
+      return '<div class="row"><span class="name">🔒 ' + esc(a.username) +
+        (a.online ? '' : ' <span class="badge">ออฟไลน์</span>') + '</span>' +
+        '<button data-auth="logout">Logout</button></div>' + settings;
+    }
+    return '<div class="name">บัญชี — login เพื่อปลดล็อคฟีเจอร์พิเศษ</div>' +
+      '<div class="actions">' +
+      '<input id="auth-user" placeholder="Email/Username" value="' + esc(a.username) + '">' +
+      '<input id="auth-pass" type="password" placeholder="Password">' +
+      '<button data-auth="login"' + (a.busy ? ' disabled' : '') + '>' +
+      (a.busy ? 'กำลัง login…' : 'Login') + '</button></div>' + settings;
+  }
+
   var hub = {
     loading: function () {
       document.getElementById('list').textContent = 'กำลังโหลด…';
@@ -143,6 +168,9 @@
     },
     title: function (text) {
       document.getElementById('title').textContent = text;
+    },
+    auth: function (a) {
+      document.getElementById('account').innerHTML = accountHtml(a);
     }
   };
 
@@ -166,6 +194,26 @@
   document.getElementById('refresh').addEventListener('click', function () {
     hub.message('', '');
     callRuby('refresh');
+  });
+
+  document.getElementById('account').addEventListener('click', function (ev) {
+    var action = ev.target.getAttribute('data-auth');
+    if (!action || ev.target.disabled) return;
+    hub.message('', '');
+    if (action === 'login') {
+      ev.target.disabled = true;
+      callRuby('login', JSON.stringify({ username: val('auth-user'), password: val('auth-pass') }));
+    } else if (action === 'save_api_url') {
+      callRuby('save_api_url', val('auth-url'));
+    } else {
+      callRuby(action);
+    }
+  });
+
+  document.getElementById('account').addEventListener('keydown', function (ev) {
+    if (ev.key !== 'Enter' || ev.target.id !== 'auth-pass') return;
+    var button = document.querySelector('[data-auth="login"]');
+    if (button) button.click();
   });
 
   document.addEventListener('DOMContentLoaded', function () { callRuby('ready'); });

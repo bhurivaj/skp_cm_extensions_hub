@@ -4,6 +4,8 @@
 
 ### Added
 - Login บัญชี Odoo ที่ Hub (ใช้ปลดล็อคฟีเจอร์พิเศษใน plugins ของ SKP CM) — บันทึกบัญชีใน `SkpCm/extensions_hub/auth.json`
+- การ์ด "บัญชี" ใน Hub: Login / Logout, ตั้งค่า API Base URL, login อัตโนมัติตอนเปิด SketchUp
+- Ruby API `SkpCm::ExtensionsHub::Auth` ให้ plugins อื่นเช็กสถานะ login / ขอ token
 
 ## [0.3.0] - 2026-10-11
 

@@ -23,6 +23,26 @@ SketchUp → Extensions → Extension Manager → Install Extension → เล�
 - `files` = ไฟล์/โฟลเดอร์ใน Plugins folder (ตัวแรกคือ loader) — ใช้ตอนถอน
 - Release: tag `vX.Y.Z`, แนบ `.rbz` 1 ไฟล์, ใน `.rbz` มีเฉพาะสิ่งที่อยู่ใน `files`
 
+## บัญชี (login กลาง)
+
+Login ด้วยบัญชี Odoo ที่การ์ด "บัญชี" ด้านบนของ Hub — plugins อื่นของ SKP CM ใช้สถานะนี้ปลดล็อคฟีเจอร์พิเศษ
+บัญชีเก็บใน `SkpCm/extensions_hub/auth.json` (Windows `%APPDATA%`, macOS `~/Library/Application Support`)
+เปิด SketchUp ครั้งต่อไปจะ login ให้อัตโนมัติ; ออฟไลน์ยังปลดล็อคอยู่ แต่ฟีเจอร์ที่ต้องเรียก Odoo ใช้ไม่ได้
+
+### สำหรับ plugin อื่น (Ruby API)
+
+เช็ก Hub ตอนใช้งาน (ไม่ใช่ตอนโหลด — SketchUp โหลด plugin ตามลำดับชื่อไฟล์):
+
+```ruby
+auth = defined?(SkpCm::ExtensionsHub::Auth) ? SkpCm::ExtensionsHub::Auth : nil
+auth && auth.logged_in?            # ปลดล็อคฟีเจอร์
+auth.token                         # String หรือ nil (ออฟไลน์) — ใช้กับ "#{auth.api_base_url}/..."
+auth.relogin { |ok, error| }       # เมื่อ Odoo ตอบ 401
+listener = auth.on_change { |logged_in| }   # ถอดด้วย auth.off_change(listener)
+auth.show_login                    # เปิดหน้า Hub
+```
+spec: `docs/specs/2026-10-12-hub-auth-design.md` (ใน workspace)
+
 ## Development
 
     for t in tests/tc_*.rb; do ruby "$t"; done   # unit tests (ไม่ต้องใช้ SketchUp)
