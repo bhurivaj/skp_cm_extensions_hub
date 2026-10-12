@@ -185,4 +185,26 @@ class TestCatalog < Minitest::Test
     assert_equal [false, true], marked.map { |e| e['pending_restart'] }
     assert_nil entries[0]['pending_restart'], 'must not mutate input'
   end
+
+  # Real SketchUp 2024 answers load_on_start? == false even for checked, running extensions
+  def test_extension_enabled_follows_loaded_not_load_on_start
+    ext = Sketchup::FakeExtension.new('2.0.0')
+    ext.define_singleton_method(:load_on_start?) { false }
+    ext.loaded = true
+    assert_equal true, C.extension_enabled(ext, 'X')
+    ext.loaded = false
+    assert_equal false, C.extension_enabled(ext, 'X')
+    assert_nil C.extension_enabled(nil, 'X')
+  end
+
+  def test_extension_enabled_remembers_a_switch_made_in_this_session
+    ext = Sketchup::FakeExtension.new('2.0.0')
+    ext.loaded = true
+    C.remember_enabled('X', false)
+    assert_equal false, C.extension_enabled(ext, 'X'), 'Ruby cannot unload: loaded? stays true after uncheck'
+    C.remember_enabled('X', true)
+    assert_equal true, C.extension_enabled(ext, 'X')
+  ensure
+    C.forget_enabled!
+  end
 end

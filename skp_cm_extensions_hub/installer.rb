@@ -30,7 +30,7 @@ module SkpCm
           return [false, "index.json ไม่ถูกต้องสำหรับ #{entry['name']}"] if paths.empty? || paths.include?(nil)
 
           ext = Sketchup.extensions[entry['name']]
-          return [false, "ปิดใช้งาน #{entry['name']} ก่อนถอน"] if ext && ext.load_on_start?
+          return [false, "ปิดใช้งาน #{entry['name']} ก่อนถอน"] if Catalog.extension_enabled(ext, entry['name'])
 
           paths.each do |path|
             next unless File.exist?(path)
@@ -56,9 +56,11 @@ module SkpCm
 
           if on
             ext.check
+            Catalog.remember_enabled(entry['name'], true)
             [true, "เปิดใช้งาน #{entry['name']} แล้ว"]
           else
             ext.uncheck
+            Catalog.remember_enabled(entry['name'], false)
             [true, "ปิดใช้งาน #{entry['name']} แล้ว — มีผลสมบูรณ์หลัง restart SketchUp (ตอนนี้ถอนได้แล้ว)"]
           end
         end

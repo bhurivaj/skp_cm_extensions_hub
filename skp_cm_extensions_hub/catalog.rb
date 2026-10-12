@@ -73,6 +73,25 @@ module SkpCm
         entry['installed'] && !entry['self'] && entry['enabled'] != true
       end
 
+      # SketchUp's load_on_start? is false even for checked, running extensions, so use loaded?:
+      # at start-up only checked extensions load. A switch made in the Hub this session wins,
+      # because Ruby cannot unload an extension (loaded? stays true after uncheck).
+      def extension_enabled(ext, name)
+        return nil unless ext
+
+        switched = (@switched_this_session ||= {})
+        switched.key?(name) ? switched[name] : ext.loaded?
+      end
+
+      def remember_enabled(name, on)
+        (@switched_this_session ||= {})[name] = on
+      end
+
+      # Tests only
+      def forget_enabled!
+        @switched_this_session = {}
+      end
+
       def status_for(installed, installed_version, latest)
         return 'not_installed' unless installed
 
@@ -154,7 +173,7 @@ module SkpCm
               ext = Sketchup.extensions[item['name']]
               build_entry(item, plugins_dir: plugins_dir, installed_version: ext ? ext.version : nil,
                                 release: release, release_error: error,
-                                enabled: ext ? ext.load_on_start? : nil)
+                                enabled: extension_enabled(ext, item['name']))
             end
           rescue StandardError => e
             log_error(e)

@@ -11,6 +11,7 @@ class TestInstaller < Minitest::Test
   I = SkpCm::ExtensionsHub::Installer
 
   def setup
+    SkpCm::ExtensionsHub::Catalog.forget_enabled!
     @root = Dir.mktmpdir
     # real macOS path shape: spaces + non-ASCII
     @plugins = File.join(@root, 'Application Support', 'ปลั๊กอิน', 'Plugins')
@@ -87,7 +88,9 @@ class TestInstaller < Minitest::Test
 
   def test_remove_refuses_enabled_extension
     make_plugin
-    Sketchup.extensions = { 'Ropefall' => Sketchup::FakeExtension.new('2.0.0') }
+    ext = Sketchup::FakeExtension.new('2.0.0')
+    ext.loaded = true # checked extensions are loaded at start-up
+    Sketchup.extensions = { 'Ropefall' => ext }
     ok, msg = I.remove(entry)
     refute ok
     assert_includes msg, 'ปิดใช้งาน'
@@ -189,5 +192,34 @@ class TestInstaller < Minitest::Test
     refute ok
     assert_includes msg, 'ติดตั้งไม่สำเร็จ'
     assert_empty Dir.glob(File.join(Dir.tmpdir, 'ropefall_2.0.1*.rbz'))
+  end
+
+  def test_set_enabled_is_remembered_for_the_card
+    ext = Sketchup::FakeExtension.new('2.0.0')
+    ext.loaded = true
+    Sketchup.extensions = { 'Ropefall' => ext }
+    I.set_enabled(entry, false)
+    assert_equal false, SkpCm::ExtensionsHub::Catalog.extension_enabled(ext, 'Ropefall')
+    I.set_enabled(entry, true)
+    assert_equal true, SkpCm::ExtensionsHub::Catalog.extension_enabled(ext, 'Ropefall')
+  ensure
+    SkpCm::ExtensionsHub::Catalog.forget_enabled!
+  end
+
+  # SketchUp 2024 answers load_on_start? == false for a checked, running extension: the guard must still hold
+  def test_remove_refuses_running_extension_even_if_load_on_start_is_false
+    ext = Sketchup::FakeExtension.new('2.0.0')
+    ext.loaded = true
+    ext.define_singleton_method(:load_on_start?) { false }
+    Sketchup.extensions = { 'Ropefall' => ext }
+    File.write(File.join(@plugins, 'sketchrope_ropefall.rb'), 'x')
+    ok, = I.remove(entry('files' => ['sketchrope_ropefall.rb']))
+    refute ok
+    assert File.exist?(File.join(@plugins, 'sketchrope_ropefall.rb'))
+    I.set_enabled(entry, false)
+    ok, = I.remove(entry('files' => ['sketchrope_ropefall.rb']))
+    assert ok, 'removable once disabled in the Hub'
+  ensure
+    SkpCm::ExtensionsHub::Catalog.forget_enabled!
   end
 end
