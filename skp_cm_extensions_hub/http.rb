@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'uri'
+
 module SkpCm
   module ExtensionsHub
     # Async GET on top of Sketchup::Http; follows redirects itself (GitHub asset links redirect to another host)
@@ -16,6 +18,26 @@ module SkpCm
           request.start do |req, response|
             pending.delete(req)
             handle(response, headers, redirects_left, done)
+          end
+        rescue StandardError => e
+          pending.delete(request) if request
+          safe_call(done, nil, nil, e.message)
+        end
+
+        # Async form POST (no redirects). Yields (status_code, body, error_message) like get
+        def post_form(url, fields, &done)
+          request = Sketchup::Http::Request.new(url, Sketchup::Http::POST)
+          request.headers = default_headers.merge('Content-Type' => 'application/x-www-form-urlencoded')
+          request.body = URI.encode_www_form(fields)
+          pending << request
+          request.start do |req, response|
+            pending.delete(req)
+            status = response ? response.status_code.to_i : 0
+            if status.zero?
+              safe_call(done, nil, nil, 'network error')
+            else
+              safe_call(done, status, response.body, nil)
+            end
           end
         rescue StandardError => e
           pending.delete(request) if request
