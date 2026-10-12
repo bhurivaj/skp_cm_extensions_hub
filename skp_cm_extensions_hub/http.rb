@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require 'uri'
+require 'json'
 
 module SkpCm
   module ExtensionsHub
@@ -24,11 +24,11 @@ module SkpCm
           safe_call(done, nil, nil, e.message)
         end
 
-        # Async form POST (no redirects). Yields (status_code, body, error_message) like get
-        def post_form(url, fields, &done)
+        # Async JSON POST (no redirects). Yields (status_code, body, error_message) like get
+        def post_json(url, payload, &done)
           request = Sketchup::Http::Request.new(url, Sketchup::Http::POST)
-          request.headers = default_headers.merge('Content-Type' => 'application/x-www-form-urlencoded')
-          request.body = URI.encode_www_form(fields)
+          request.headers = default_headers.merge('Content-Type' => 'application/json')
+          request.body = JSON.generate(payload)
           pending << request
           request.start do |req, response|
             pending.delete(req)

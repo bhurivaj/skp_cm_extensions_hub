@@ -130,8 +130,9 @@
 
   function accountHtml(a) {
     var settings = '<details><summary>ตั้งค่าบัญชี</summary><div class="actions">' +
-      'API Base URL: <input id="auth-url" size="32" value="' + esc(a.api_base_url) + '">' +
-      '<button data-auth="save_api_url">บันทึก</button></div></details>';
+      'API Base URL: <input id="auth-url" size="28" value="' + esc(a.api_base_url) + '">' +
+      'Database: <input id="auth-db" size="10" value="' + esc(a.database) + '">' +
+      '<button data-auth="save_connection">บันทึก</button></div></details>';
     if (a.logged_in) {
       return '<div class="row"><span class="name">🔒 ' + esc(a.username) +
         (a.online ? '' : ' <span class="badge">ออฟไลน์</span>') + '</span><span>' +
@@ -205,8 +206,8 @@
     if (action === 'login') {
       ev.target.disabled = true;
       callRuby('login', JSON.stringify({ username: val('auth-user'), password: val('auth-pass') }));
-    } else if (action === 'save_api_url') {
-      callRuby('save_api_url', val('auth-url'));
+    } else if (action === 'save_connection') {
+      callRuby('save_connection', JSON.stringify({ url: val('auth-url'), database: val('auth-db') }));
     } else {
       callRuby(action);
     }

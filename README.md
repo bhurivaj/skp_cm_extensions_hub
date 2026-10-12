@@ -25,7 +25,7 @@ SketchUp → Extensions → Extension Manager → Install Extension → เล�
 
 ## บัญชี (login กลาง)
 
-Login ด้วยบัญชี Odoo ที่การ์ด "บัญชี" ด้านบนของ Hub — plugins อื่นของ SKP CM ใช้สถานะนี้ปลดล็อคฟีเจอร์พิเศษ
+Login ด้วยบัญชี Odoo (JSON-RPC `common.authenticate`, database ตั้งได้ใน "ตั้งค่าบัญชี" — ค่าเริ่มต้น `odoo_ci`) ที่การ์ด "บัญชี" ด้านบนของ Hub — plugins อื่นของ SKP CM ใช้สถานะนี้ปลดล็อคฟีเจอร์พิเศษ
 บัญชีเก็บใน `SkpCm/extensions_hub/auth.json` (Windows `%APPDATA%`, macOS `~/Library/Application Support`)
 เปิด SketchUp ครั้งต่อไปจะ login ให้อัตโนมัติ; ออฟไลน์ยังปลดล็อคอยู่ แต่ฟีเจอร์ที่ต้องเรียก Odoo ใช้ไม่ได้
 
@@ -36,8 +36,8 @@ Login ด้วยบัญชี Odoo ที่การ์ด "บัญชี
 ```ruby
 auth = defined?(SkpCm::ExtensionsHub::Auth) ? SkpCm::ExtensionsHub::Auth : nil
 auth && auth.logged_in?            # ปลดล็อคฟีเจอร์
-auth.token                         # String หรือ nil (ออฟไลน์) — ใช้กับ "#{auth.api_base_url}/..."
-auth.relogin { |ok, error| }       # เมื่อ Odoo ตอบ 401
+auth.uid                           # Integer หรือ nil (ยังเชื่อมต่อ server ไม่ได้ / ออฟไลน์)
+auth.relogin { |ok, error| }       # ลองเชื่อมต่อใหม่ด้วยบัญชีที่บันทึกไว้
 listener = auth.on_change { |logged_in| }   # ถอดด้วย auth.off_change(listener)
 auth.show_login                    # เปิดหน้า Hub
 ```

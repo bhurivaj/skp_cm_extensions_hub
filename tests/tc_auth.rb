@@ -11,18 +11,26 @@ class TestAuth < Minitest::Test
   A = SkpCm::ExtensionsHub::Auth
   S = SkpCm::ExtensionsHub::AuthStore
   H = SkpCm::ExtensionsHub::Http
-  URL = 'https://odoo.catice.co/auth/login/access-token'
-  OK = [200, '{"access_token":"tok1","token_type":"bearer"}', nil].freeze
-  BAD = [401, '{"detail":"Incorrect username or password"}', nil].freeze
+  URL = 'https://odoo.catice.co/jsonrpc'
+  OK = [200, '{"jsonrpc":"2.0","id":1,"result":7}', nil].freeze
+  BAD = [200, '{"jsonrpc":"2.0","id":1,"result":false}', nil].freeze
   DOWN = [nil, nil, 'network error'].freeze
+  NO_DB = [200, '{"jsonrpc":"2.0","id":1,"error":{"code":200,"message":"Odoo Server Error",' \
+                '"data":{"name":"psycopg2.OperationalError","message":"connection to server at \\"10.0.0.9\\" failed: ' \
+                '\\nFATAL:  database \\"x\\" does not exist\\n"}}}', nil].freeze
+
+  def rpc(database, user, pass)
+    { 'jsonrpc' => '2.0', 'method' => 'call', 'id' => 1,
+      'params' => { 'service' => 'common', 'method' => 'authenticate', 'args' => [database, user, pass, {}] } }
+  end
 
   # Each queued response answers one POST. :hold keeps it open — answer later with @held.call(*OK)
   def stub_post(*responses)
     @posts = []
     posts = @posts
     test = self
-    H.define_singleton_method(:post_form) do |url, fields, &blk|
-      posts << [url, fields]
+    H.define_singleton_method(:post_json) do |url, payload, &blk|
+      posts << [url, payload]
       r = responses.shift
       r == :hold ? test.instance_variable_set(:@held, blk) : blk.call(*r)
     end
@@ -51,11 +59,11 @@ class TestAuth < Minitest::Test
     stub_post(OK)
     assert_equal [true, nil], login
     assert A.logged_in?
-    assert_equal 'tok1', A.token
+    assert_equal 7, A.uid
     assert_equal 'a@b.c', A.username
-    assert_equal [[URL, { 'username' => 'a@b.c', 'password' => 'pw' }]], @posts
+    assert_equal [[URL, rpc('odoo_ci', 'a@b.c', 'pw')]], @posts
     assert_equal [true, 'pw'], [S.load['verified'], S.load['password']]
-    refute_includes File.read(S.path), 'tok1', 'token must never be written to disk'
+    refute_includes File.read(S.path), 'uid', 'uid must never be written to disk'
   end
 
   def test_rejected_login_locks_and_keeps_username
@@ -65,7 +73,7 @@ class TestAuth < Minitest::Test
     assert_equal false, ok
     assert_match(/ไม่ถูกต้อง/, err)
     refute A.logged_in?
-    assert_nil A.token
+    assert_nil A.uid
     assert_equal 'a@b.c', A.username
     assert_equal '', S.load['password']
   end
@@ -77,16 +85,27 @@ class TestAuth < Minitest::Test
     A.relogin { |ok, _| result = ok }
     assert_equal false, result
     assert A.logged_in?
-    assert_nil A.token
+    assert_nil A.uid
   end
 
-  def test_200_without_token_is_server_problem
-    stub_post(OK, [200, '<html>proxy</html>', nil], [200, '{"x":1}', nil])
+  def test_unexpected_reply_is_server_problem
+    odd = ['<html>proxy</html>', '{"x":1}', '{"result":0}', '{"result":"7"}', '{"result":true}']
+    stub_post(OK, *odd.map { |body| [200, body, nil] }, [404, 'Not Found', nil])
     login
-    refute login.first
-    refute login.first
+    (odd.size + 1).times { refute login.first }
     assert A.logged_in?, 'saved account must survive a broken server reply'
-    assert_nil A.token
+    assert_nil A.uid
+  end
+
+  def test_odoo_error_keeps_account_and_shows_message
+    stub_post(OK, NO_DB)
+    login
+    ok, err = login
+    assert_equal false, ok
+    assert_match(/does not exist/, err)
+    refute_includes err, '10.0.0.9', 'only the last line of the Odoo error is shown'
+    assert A.logged_in?
+    assert_nil A.uid
   end
 
   def test_logout
@@ -94,7 +113,7 @@ class TestAuth < Minitest::Test
     login
     A.logout
     refute A.logged_in?
-    assert_nil A.token
+    assert_nil A.uid
     assert_equal 'a@b.c', A.username
     assert_equal '', S.load['password']
   end
@@ -111,13 +130,13 @@ class TestAuth < Minitest::Test
   end
 
   def test_auto_login_uses_saved_account
-    S.save('api_base_url' => 'https://x.test', 'username' => 'u', 'password' => 'p', 'verified' => true)
+    S.save('api_base_url' => 'https://x.test', 'database' => 'db2', 'username' => 'u', 'password' => 'p', 'verified' => true)
     A.reset!
     stub_post(OK)
     assert A.logged_in?, 'unlocked from the saved file before the server answers'
     A.auto_login
-    assert_equal [['https://x.test/auth/login/access-token', { 'username' => 'u', 'password' => 'p' }]], @posts
-    assert_equal 'tok1', A.token
+    assert_equal [['https://x.test/jsonrpc', rpc('db2', 'u', 'p')]], @posts
+    assert_equal 7, A.uid
   end
 
   def test_overlapping_relogin_sends_one_request
@@ -137,7 +156,7 @@ class TestAuth < Minitest::Test
     stub_post(OK)
     login
     expected = { 'logged_in' => true, 'username' => 'a@b.c', 'online' => true,
-                 'api_base_url' => 'https://odoo.catice.co', 'busy' => false }
+                 'api_base_url' => 'https://odoo.catice.co', 'database' => 'odoo_ci', 'busy' => false }
     assert_equal expected, A.status
   end
 
@@ -147,7 +166,7 @@ class TestAuth < Minitest::Test
     A.on_change { |_| raise 'boom' }
     A.on_change { |v| calls << v }
     login
-    login # same token again → nothing changed
+    login # same uid again → nothing changed
     assert_equal [true], calls
     A.logout
     assert_equal [true, false], calls
@@ -180,20 +199,22 @@ class TestAuth < Minitest::Test
     assert_equal 'old@b.c', A.username
   end
 
-  def test_save_api_base_url
+  def test_save_connection
     stub_post(OK, OK)
     login
     calls = []
     A.on_change { |v| calls << v }
-    assert_equal false, A.save_api_base_url('ftp://x.test')
-    assert_equal false, A.save_api_base_url('')
-    assert_equal 'tok1', A.token
-    assert_equal true, A.save_api_base_url(' https://new.test/ ')
-    assert_nil A.token, 'a token from the old server is useless'
+    assert_equal false, A.save_connection('ftp://x.test', 'db')
+    assert_equal false, A.save_connection('', 'db')
+    assert_equal false, A.save_connection('https://new.test', ' ')
+    assert_equal false, A.save_connection('https://new.test', 'my db')
+    assert_equal 7, A.uid
+    assert_equal true, A.save_connection(' https://new.test/ ', ' db_2 ')
+    assert_nil A.uid, 'a uid from the old server is useless'
     assert_equal [true], calls
-    assert_equal 'https://new.test', S.load['api_base_url']
+    assert_equal ['https://new.test', 'db_2'], [S.load['api_base_url'], S.load['database']]
     A.relogin {}
-    assert_equal 'https://new.test/auth/login/access-token', @posts.last[0]
+    assert_equal ['https://new.test/jsonrpc', rpc('db_2', 'a@b.c', 'pw')], @posts.last
   end
 
   # --- a pending login must not override what happened after it was sent ---
@@ -204,21 +225,21 @@ class TestAuth < Minitest::Test
     A.logout
     @held.call(*OK)
     refute A.logged_in?
-    assert_nil A.token
+    assert_nil A.uid
     assert_equal '', S.load['password']
   end
 
   def test_url_change_during_login_uses_new_server
-    stub_post(OK, :hold, [200, '{"access_token":"tok2"}', nil])
+    stub_post(OK, :hold, [200, '{"jsonrpc":"2.0","id":1,"result":8}', nil])
     login
     A.relogin {}
     old_reply = @held
-    A.save_api_base_url('https://new.test')
+    A.save_connection('https://new.test', 'odoo_ci')
     A.relogin {}
-    assert_equal 'https://new.test/auth/login/access-token', @posts.last[0]
-    assert_equal 'tok2', A.token
+    assert_equal 'https://new.test/jsonrpc', @posts.last[0]
+    assert_equal 8, A.uid
     old_reply.call(*OK)
-    assert_equal 'tok2', A.token, 'a reply from the old server must be ignored'
+    assert_equal 8, A.uid, 'a reply from the old server must be ignored'
   end
 
   def test_different_credentials_send_their_own_request
@@ -227,7 +248,7 @@ class TestAuth < Minitest::Test
     A.import_credentials('old', 'pw') { |ok, err| first = [ok, err] }
     old_reply = @held
     assert_equal [true, nil], login('new@b.c', 'pw2')
-    assert_equal %w[old new@b.c], @posts.map { |p| p[1]['username'] }
+    assert_equal %w[old new@b.c], @posts.map { |p| p[1]['params']['args'][1] }
     assert_equal false, first[0], 'the replaced request is answered as cancelled'
     old_reply.call(*BAD)
     assert A.logged_in?

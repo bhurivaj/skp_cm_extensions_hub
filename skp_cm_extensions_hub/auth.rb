@@ -7,14 +7,13 @@ require_relative 'auth_store'
 module SkpCm
   module ExtensionsHub
     # Shared Odoo login for all SKP CM plugins. Other plugins call the public methods —
-    # do not rename them or change their arguments (docs/specs/2026-10-12-hub-auth-design.md §3.4).
+    # do not rename them or change their arguments (docs/specs/2026-10-12-hub-auth-design.md §3.4, §7).
     module Auth
-      LOGIN_PATH = '/auth/login/access-token'
-      REJECTED_CODES = [400, 401, 403].freeze
+      RPC_PATH = '/jsonrpc'
 
       class << self
-        # nil until the server gave a token in this SketchUp session
-        attr_reader :token
+        # Odoo user id; nil until the server accepted the login in this SketchUp session
+        attr_reader :uid
 
         # true after a successful login until logout or a rejected password — also while offline
         def logged_in?
@@ -31,10 +30,14 @@ module SkpCm
           state['api_base_url']
         end
 
-        # For the Hub dialog — never contains the password or the token
+        def database
+          state['database']
+        end
+
+        # For the Hub dialog — never contains the password
         def status
-          { 'logged_in' => logged_in?, 'username' => username, 'online' => !@token.nil?,
-            'api_base_url' => api_base_url, 'busy' => !@waiting.nil? }
+          { 'logged_in' => logged_in?, 'username' => username, 'online' => !@uid.nil?,
+            'api_base_url' => api_base_url, 'database' => database, 'busy' => !@waiting.nil? }
         end
 
         def login(user, pass, &done)
@@ -45,7 +48,7 @@ module SkpCm
           request_login(user, pass, done)
         end
 
-        # Login again with the saved account (token expired / Odoo answered 401)
+        # Login again with the saved account (e.g. SketchUp started offline)
         def relogin(&done)
           s = state
           return call_safely(done, false, 'ยังไม่มีบัญชีที่บันทึกไว้') if s['username'].empty? || s['password'].empty?
@@ -61,7 +64,7 @@ module SkpCm
         def logout
           cancel_pending
           change do
-            @token = nil
+            @uid = nil
             save('password' => '', 'verified' => false)
           end
         end
@@ -73,20 +76,21 @@ module SkpCm
           login(user, pass, &done)
         end
 
-        # Returns false (nothing saved) unless the URL is http(s)
-        def save_api_base_url(url)
+        # Odoo server + database. Returns false (nothing saved) unless the URL is http(s) and the name is valid
+        def save_connection(url, name)
           url = url.to_s.strip.chomp('/')
-          return false unless url =~ %r{\Ahttps?://\S+\z}
+          name = name.to_s.strip
+          return false unless url =~ %r{\Ahttps?://\S+\z} && name =~ /\A[\w.-]+\z/
 
           cancel_pending
           change do
-            @token = nil
-            save('api_base_url' => url)
+            @uid = nil
+            save('api_base_url' => url, 'database' => name)
           end
           true
         end
 
-        # listener.call(logged_in) whenever logged_in? or the token changes; returns the listener for off_change
+        # listener.call(logged_in) whenever logged_in? or the uid changes; returns the listener for off_change
         def on_change(&listener)
           listeners << listener if listener
           listener
@@ -102,7 +106,7 @@ module SkpCm
 
         # Tests only: forget everything held in memory
         def reset!
-          @state = @token = @waiting = @waiting_key = @listeners = nil
+          @state = @uid = @waiting = @waiting_key = @listeners = nil
         end
 
         private
@@ -117,9 +121,9 @@ module SkpCm
         end
 
         # The same login while one is in flight waits for that result (no second POST).
-        # A different login, a logout or a URL change cancels the pending one: its reply is ignored.
+        # A different login, a logout or a connection change cancels the pending one: its reply is ignored.
         def request_login(user, pass, done)
-          key = [user, pass, api_base_url]
+          key = [user, pass, api_base_url, database]
           if @waiting && @waiting_key == key
             @waiting << done if done
             return
@@ -128,7 +132,7 @@ module SkpCm
           generation = @generation
           @waiting = done ? [done] : []
           @waiting_key = key
-          Http.post_form(api_base_url + LOGIN_PATH, 'username' => user, 'password' => pass) do |status, body, error|
+          Http.post_json(api_base_url + RPC_PATH, authenticate_payload(user, pass)) do |status, body, error|
             next unless generation == @generation
 
             waiting = @waiting || []
@@ -149,36 +153,63 @@ module SkpCm
           waiting.each { |cb| call_safely(cb, false, 'ยกเลิกแล้ว') }
         end
 
+        # Odoo JSON-RPC common.authenticate (spec §7)
+        def authenticate_payload(user, pass)
+          { 'jsonrpc' => '2.0', 'method' => 'call', 'id' => 1,
+            'params' => { 'service' => 'common', 'method' => 'authenticate', 'args' => [database, user, pass, {}] } }
+        end
+
         def apply_result(user, pass, status, body, error)
-          new_token = status == 200 ? parse_token(body) : nil
-          if new_token
-            @token = new_token
+          kind, value = parse_reply(status, body, error)
+          case kind
+          when :ok
+            @uid = value
             save('username' => user, 'password' => pass, 'verified' => true)
             [true, nil]
-          elsif REJECTED_CODES.include?(status)
-            @token = nil
+          when :rejected
+            @uid = nil
             save('username' => user, 'password' => '', 'verified' => false)
             [false, 'username หรือ password ไม่ถูกต้อง']
           else
             # offline or server problem: keep the saved account and its verified flag
-            @token = nil
-            [false, "เชื่อมต่อ server ไม่ได้ (#{error || status})"]
+            @uid = nil
+            [false, value]
           end
         end
 
-        def parse_token(body)
+        # => [:ok, uid] / [:rejected] / [:error, message]
+        def parse_reply(status, body, error)
+          return [:error, "เชื่อมต่อ server ไม่ได้ (#{error})"] if status.nil?
+          return [:error, "server ตอบกลับ HTTP #{status} — ตรวจ API Base URL"] unless status == 200
+
           data = JSON.parse(body.to_s)
-          value = data.is_a?(Hash) ? data['access_token'].to_s : ''
-          value.empty? ? nil : value
+          return [:error, 'server ตอบกลับไม่ถูกต้อง'] unless data.is_a?(Hash)
+          return [:error, "Odoo แจ้ง error: #{odoo_error(data['error'])} — ตรวจ API Base URL / Database"] if data.key?('error')
+
+          result = data['result']
+          return [:rejected] if result == false
+          return [:ok, result] if result.is_a?(Integer) && result > 0
+
+          [:error, 'server ตอบกลับไม่ถูกต้อง']
         rescue JSON::ParserError
-          nil
+          [:error, 'server ตอบกลับไม่ถูกต้อง (ไม่ใช่ Odoo JSON-RPC)']
         end
 
-        # Runs the block; tells listeners when logged_in? or the token changed
+        def odoo_error(info)
+          return 'ไม่ทราบสาเหตุ' unless info.is_a?(Hash)
+
+          detail = info['data']
+          text = (detail.is_a?(Hash) && detail['message']) || info['message']
+          # the last line says what is wrong ("database ... does not exist"); earlier lines may hold server internals
+          line = text.to_s.strip.lines.last.to_s.strip
+          line.empty? ? 'ไม่ทราบสาเหตุ' : line
+        end
+
+        # Runs the block; tells listeners when logged_in? or the uid changed
         def change
-          before = [logged_in?, @token]
+          before = [logged_in?, @uid]
           yield
-          notify if before != [logged_in?, @token]
+          notify if before != [logged_in?, @uid]
         end
 
         def notify

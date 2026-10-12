@@ -6,9 +6,10 @@ require 'fileutils'
 
 module SkpCm
   module ExtensionsHub
-    # Saved account for Auth: <user data>/SkpCm/extensions_hub/auth.json. The token is never saved.
+    # Saved account for Auth: <user data>/SkpCm/extensions_hub/auth.json. The Odoo uid is never saved.
     module AuthStore
       DEFAULT_API_URL = 'https://odoo.catice.co'
+      DEFAULT_DATABASE = 'odoo_ci'
       # XOR + Base64 only hides the password from casual reading — it is not encryption
       KEY = 'SkpCmExtensionsHub'
 
@@ -29,7 +30,8 @@ module SkpCm
         end
 
         def defaults
-          { 'api_base_url' => DEFAULT_API_URL, 'username' => '', 'password' => '', 'verified' => false }
+          { 'api_base_url' => DEFAULT_API_URL, 'database' => DEFAULT_DATABASE, 'username' => '', 'password' => '',
+            'verified' => false }
         end
 
         # Always a full state hash; a missing or broken file gives the defaults
@@ -40,8 +42,10 @@ module SkpCm
           return defaults unless data.is_a?(Hash)
 
           url = data['api_base_url'].to_s
+          database = data['database'].to_s
           {
             'api_base_url' => url.empty? ? DEFAULT_API_URL : url,
+            'database' => database.empty? ? DEFAULT_DATABASE : database,
             'username' => data['username'].to_s,
             'password' => decrypt(data['password'].to_s),
             'verified' => data['verified'] == true

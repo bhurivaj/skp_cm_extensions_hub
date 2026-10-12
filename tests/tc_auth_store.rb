@@ -42,11 +42,14 @@ class TestAuthStore < Minitest::Test
   end
 
   def test_missing_file_gives_defaults
-    assert_equal({ 'api_base_url' => 'https://odoo.catice.co', 'username' => '', 'password' => '', 'verified' => false }, S.load)
+    expected = { 'api_base_url' => 'https://odoo.catice.co', 'database' => 'odoo_ci', 'username' => '',
+                 'password' => '', 'verified' => false }
+    assert_equal expected, S.load
   end
 
   def test_save_and_load_round_trip_with_thai_password
-    state = { 'api_base_url' => 'https://x.test', 'username' => 'a@b.c', 'password' => 'รหัส#1"', 'verified' => true }
+    state = { 'api_base_url' => 'https://x.test', 'database' => 'db1', 'username' => 'a@b.c',
+              'password' => 'รหัส#1"', 'verified' => true }
     assert_equal true, S.save(state)
     assert_equal state, S.load
   end
@@ -67,8 +70,9 @@ class TestAuthStore < Minitest::Test
     FileUtils.mkdir_p(File.dirname(S.path))
     File.write(S.path, '[1,2]')
     assert_equal false, S.load['verified']
-    File.write(S.path, JSON.generate('api_base_url' => '', 'username' => 'a', 'verified' => 'yes'))
+    File.write(S.path, JSON.generate('api_base_url' => '', 'database' => '', 'username' => 'a', 'verified' => 'yes'))
     assert_equal 'https://odoo.catice.co', S.load['api_base_url']
+    assert_equal 'odoo_ci', S.load['database']
     assert_equal false, S.load['verified'], 'only literal true counts'
   end
 
