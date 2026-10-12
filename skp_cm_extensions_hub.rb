@@ -6,7 +6,7 @@ require 'extensions.rb'
 module SkpCm
   module ExtensionsHub
     PLUGIN_NAME = 'SKP CM Extensions Hub'
-    VERSION = '0.5.0'
+    VERSION = '0.5.1'
 
     file = __FILE__.dup
     file.force_encoding('UTF-8') if file.respond_to?(:force_encoding)
