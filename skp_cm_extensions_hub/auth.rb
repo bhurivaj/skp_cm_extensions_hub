@@ -59,6 +59,7 @@ module SkpCm
         end
 
         def logout
+          cancel_pending
           change do
             @token = nil
             save('password' => '', 'verified' => false)
@@ -77,6 +78,7 @@ module SkpCm
           url = url.to_s.strip.chomp('/')
           return false unless url =~ %r{\Ahttps?://\S+\z}
 
+          cancel_pending
           change do
             @token = nil
             save('api_base_url' => url)
@@ -100,7 +102,7 @@ module SkpCm
 
         # Tests only: forget everything held in memory
         def reset!
-          @state = @token = @waiting = @listeners = nil
+          @state = @token = @waiting = @waiting_key = @listeners = nil
         end
 
         private
@@ -114,20 +116,37 @@ module SkpCm
           AuthStore.save(@state)
         end
 
-        # A request made while another is in flight waits for that result (no second POST)
+        # The same login while one is in flight waits for that result (no second POST).
+        # A different login, a logout or a URL change cancels the pending one: its reply is ignored.
         def request_login(user, pass, done)
-          if @waiting
+          key = [user, pass, api_base_url]
+          if @waiting && @waiting_key == key
             @waiting << done if done
             return
           end
+          cancel_pending
+          generation = @generation
           @waiting = done ? [done] : []
+          @waiting_key = key
           Http.post_form(api_base_url + LOGIN_PATH, 'username' => user, 'password' => pass) do |status, body, error|
+            next unless generation == @generation
+
             waiting = @waiting || []
-            @waiting = nil
+            @waiting = @waiting_key = nil
             ok = message = nil
-            change { ok, message = apply_result(user, pass, status, body, error) }
-            waiting.each { |cb| call_safely(cb, ok, message) }
+            begin
+              change { ok, message = apply_result(user, pass, status, body, error) }
+            ensure
+              waiting.each { |cb| call_safely(cb, ok, message) }
+            end
           end
+        end
+
+        def cancel_pending
+          @generation = @generation.to_i + 1
+          waiting = @waiting || []
+          @waiting = @waiting_key = nil
+          waiting.each { |cb| call_safely(cb, false, 'ยกเลิกแล้ว') }
         end
 
         def apply_result(user, pass, status, body, error)

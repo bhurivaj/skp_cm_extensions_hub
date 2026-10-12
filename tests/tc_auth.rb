@@ -195,4 +195,42 @@ class TestAuth < Minitest::Test
     A.relogin {}
     assert_equal 'https://new.test/auth/login/access-token', @posts.last[0]
   end
+
+  # --- a pending login must not override what happened after it was sent ---
+
+  def test_logout_during_login_is_not_undone
+    stub_post(:hold)
+    login
+    A.logout
+    @held.call(*OK)
+    refute A.logged_in?
+    assert_nil A.token
+    assert_equal '', S.load['password']
+  end
+
+  def test_url_change_during_login_uses_new_server
+    stub_post(OK, :hold, [200, '{"access_token":"tok2"}', nil])
+    login
+    A.relogin {}
+    old_reply = @held
+    A.save_api_base_url('https://new.test')
+    A.relogin {}
+    assert_equal 'https://new.test/auth/login/access-token', @posts.last[0]
+    assert_equal 'tok2', A.token
+    old_reply.call(*OK)
+    assert_equal 'tok2', A.token, 'a reply from the old server must be ignored'
+  end
+
+  def test_different_credentials_send_their_own_request
+    stub_post(:hold, OK)
+    first = nil
+    A.import_credentials('old', 'pw') { |ok, err| first = [ok, err] }
+    old_reply = @held
+    assert_equal [true, nil], login('new@b.c', 'pw2')
+    assert_equal %w[old new@b.c], @posts.map { |p| p[1]['username'] }
+    assert_equal false, first[0], 'the replaced request is answered as cancelled'
+    old_reply.call(*BAD)
+    assert A.logged_in?
+    assert_equal 'new@b.c', A.username
+  end
 end
