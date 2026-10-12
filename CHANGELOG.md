@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.4.0] - 2026-10-12
 
 ### Added
 - Login บัญชี Odoo ที่ Hub (ใช้ปลดล็อคฟีเจอร์พิเศษใน plugins ของ SKP CM) — บันทึกบัญชีใน `SkpCm/extensions_hub/auth.json`
