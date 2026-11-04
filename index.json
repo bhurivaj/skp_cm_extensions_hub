@@ -48,6 +48,14 @@
       "repo": "bhurivaj/skp_cm_component_library",
       "description": "เลือก component มาตรฐาน (CM Structure Set) มาวางในงาน + อัปเดตตัวเก่าในไฟล์ (ต้องใช้ Hub 0.4.0+)",
       "files": ["skp_cm_component_library.rb", "skp_cm_component_library/"]
+    },
+    {
+      "id": "skp_cm_guy_line",
+      "name": "SKP CM Guy Line",
+      "author": "Bhurivaj Padcharaditthakul",
+      "repo": "bhurivaj/skp_cm_guy_line",
+      "description": "คำนวณจำนวนถังน้ำถ่วงสลิงรั้งนั่งร้าน (EN 13782) + วางสัญลักษณ์ + พิมพ์รายการคำนวณ",
+      "files": ["skp_cm_guy_line.rb", "skp_cm_guy_line/"]
     }
   ]
 }
